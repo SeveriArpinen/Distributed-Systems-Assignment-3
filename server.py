@@ -18,7 +18,7 @@ def get_data():
     try:
         tree = Tree.parse(database)
         root = tree.getroot()
-    except FileNotFoundError: # file not found, create data root and write the file
+    except (FileNotFoundError, Tree.ParseError): # file not found or cant parse the xml tree, create data root and write the file
         root = Tree.Element("data")
         tree = Tree.ElementTree(root)
         tree.write(database, encoding="utf-8", xml_declaration=True)
@@ -35,23 +35,23 @@ def save(tree):
     # save current changes to database
     tree.write(database, encoding="utf-8", xml_declaration=True)
 
-def append_topic(topic, text):
+def append_topic(topic, note_name, text):
     # function to add a new note + timestamp for a topic that exist
     time = datetime.now().strftime("%d/%m/%Y, %H:%M")
 
-    note = Tree.SubElement(topic, "note") # creates new note
+    note = Tree.SubElement(topic, "note", {"name": note_name}) # creates new note
     text_append = Tree.SubElement(note, "text") # creates new text for note
     text_append.text = text # append text
 
     time_append = Tree.SubElement(note, "timestamp")
     time_append.text = time
 
-def create_topic(root, name, text):
+def create_topic(root, name, note_name, text):
     # make a new topic and add note
     topic = Tree.SubElement(root, "topic", {"name": name})
-    append_topic(topic, text)
+    append_topic(topic, note_name, text)
 
-def add_note(name, text):
+def add_note(name, note_name, text):
     # function for getting first the data from xml
     # check if topic already exist -> if does append, if doesnt -> add a new topic
     # uses database_lock, so only one thread can write at a time, multiple writes can break the file
@@ -60,13 +60,13 @@ def add_note(name, text):
 
         topic = get_topic(root, name)
         if topic is not None: #check if exists
-            append_topic(topic, text)
+            append_topic(topic, note_name, text)
             save(tree) 
             return f"Appended text for topic: {name}"
         
-        create_topic(root, name, text)
+        create_topic(root, name, note_name, text)
         save(tree)
-        return "New topic created"
+        return f"New topic created, {name}"
 
 def get_topics():
     # function that returns all topic names
@@ -86,7 +86,7 @@ def print_topic(name):
     
     entries = []
     for note in topic.findall("note"):
-        entries.append({"text": note.findtext("text",""), "timestamp": note.findtext("timestamp", "")})
+        entries.append({"name": note.get("name",""), "text": note.findtext("text",""), "timestamp": note.findtext("timestamp", "")})
     return entries
 
 def main():
